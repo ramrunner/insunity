@@ -1,0 +1,532 @@
+Concurrency, Containers and Distributed Systems
+explorations in docker, protobufs and golang
+11 Mar 2015
+Tags: golang, docker, protocol-buffers
+
+DsP
+2f30.org / CSU netsec group
+dsp@2f30.org
+http://www.2f30.org
+
+Dan Rammer
+CSU netsec group
+rammerd@rams.colostate.edu
+ 
+* Virtualization. Why?
+
+because it's so *trendy* *omg* *xD* ❤
+
+the end.
+
+ok. it helps
+
+ - deployment
+   "so download golang for your architecture, go get the dependencies, the install quagga..."
+ - sharing
+   "it's just cloning 23 repos"
+ - automated testing
+   "once you run all the test and they pass, bring up the quagga box"
+ - isolation
+   "now leave me alone"
+
+* VMs and Containers
+VMs
+
+ - run on hypervisors
+ - each one has it's own operating system
+ - automating tasks on a bunch of them is as easy as automating any other task
+ - you can run about tens of them in a modern laptop
+ - how are things scheduled in that ?
+   - on KVM you have one process/vcpu and the linux scheduler managing processes
+   - on ESXi 3+ you have coop scheduling (stopping vcpus until others lagging in work catch up)
+   - within these contexts you have the individual OS scheduler. that's hard to visualize.
+
+Containers
+
+ - run on the host operating system as processes
+ - are contained utilizing: 
+   - kernel namespaces (pid, mount, network, user etc)
+   - chroots
+   - cgroups
+   - apparmor and seccomp policies
+ - can run thousands on a modern laptop
+ - each one can utilize all the actual cpus on the host
+
+* VMs and Containers
+
+.image imgs/containers-vs-vms.jpg
+
+* Docker
+
+Docker offers more than just containers. it also offers a way to manage them and share them efficiently.
+
+ - it builds on AuFS which is a union layered filesystem
+   - this permits having parts being ro or wo and merging them together
+   - most part of the filesystem resides in the ro part shared by all the containers
+ - on top of that it builds on git which maintains a tree of changes to these filesystems
+   - semantics we all use daily
+   - snapshots, rollbacks etc.
+ - dockerhub like github is the SaaS platform that the user normally interacts with to share data
+
+So in environments where we don't need the extra isolation that a VM provides, dockerized applications are more efficient for:
+
+ - Faster delivery of applications
+ - Better deployment and scaling
+ - Higher density for actual workload
+
+* Take me to a "Hello world" world
+
+basic
+
+ $ sudo docker run ubuntu:14.04 /bin/echo 'Hello world' 
+ Hello world 
+
+interactive
+ 
+ $ sudo docker run -t -i ubuntu:14.04 /bin/bash
+ root@af8bae53bdd3:/#
+_-t_ assigns a tty and _-i_ is grabbing the container's STDstreams
+
+daemonized
+
+ $ sudo docker run -d ubuntu:14.04 /bin/sh -c "while true; do echo hello world; sleep 1; done"
+ 1e5535038e285177d5214659a068137486f96ee5c2e85a4ac52dc83f2ebe4147
+ $ sudo docker ps
+ CONTAINER ID  IMAGE         COMMAND               CREATED        STATUS       PORTS NAMES
+ 1e5535038e28  ubuntu:14.04  /bin/sh -c 'while tr  2 minutes ago  Up 1 minute        insane_babbage
+ $ sudo docker logs insane_babbage
+ hello world
+ hello world
+
+* Dockerizing stuff
+We have a directory with a sample golang program that we wish to copy to our images. We also equip the image with a bashrc to fix PATHs.
+
+ $ cat insunity/insunity.go
+ package main
+ import "fmt"
+
+ func main() {
+         fmt.Printf("χελόου γουορλντ\n")
+ }
+ $ cat bashrc
+ export GOPATH="/root/go/"
+ export GOBIN="/root/go/bin/"
+ export PATH="/root/go/bin/:$PATH"
+
+* Dockerizing stuff
+
+So we will create a directory that will contain all the files we need + a Dockerfile to instruct docker on automation steps
+
+ $ cat Dockerfile
+ FROM ubuntu:14.04
+ MAINTAINER anon ymous, dsp@2f30.org
+ RUN \
+   apt-get update && \
+   apt-get install -y golang && \
+   mkdir -p /root/go/src && \
+   mkdir -p /root/go/bin
+ COPY bashrc /root/.bashrc
+ COPY insunity /root/go/src/insunity
+ ENV GOBIN /root/go/bin
+ ENV PATH /root/go/bin:$PATH
+ WORKDIR /root
+ RUN go install /root/go/src/insunity/insunity.go
+ CMD ["bash"]
+ $ tree
+ ├── bashrc
+ ├── Dockerfile
+ └── insunity
+     └── insunity.go
+
+* Dockerizing stuff
+
+ $ sudo docker build -t ramrunner/goubuntu .
+ Sending build context to Docker daemon 4.608 kB
+ Sending build context to Docker daemon
+ Step 0 : FROM ubuntu:14.04
+  ---> 2103b00b3fdf
+ Step 1 : MAINTAINER anon ymous, dsp@2f30.org
+  ---> bddbdeb601ca
+ Step 2 : RUN apt-get update &&   apt-get install -y golang &&   mkdir -p /root/go/src &&   mkdir -p /root/go/bin
+  ---> 6351cc05117d
+ Step 3 : COPY bashrc /root/.bashrc
+  ---> 06008dfca920
+ Step 4 : COPY insunity /root/go/src/insunity
+  ---> 795b3cbf2750
+ Step 5 : ENV GOBIN /root/go/bin
+  ---> b07441c50933
+ Step 6 : ENV PATH /root/go/bin:$PATH
+  ---> 6faeee4a08d2
+ Step 7 : RUN go install /root/go/src/insunity/insunity.go
+  ---> Running in 116c1705f763
+  ---> fc997e84bc5c
+ Removing intermediate container 116c1705f763
+ Step 8 : CMD bash
+  ---> 6d5567a9c617
+ Successfully built 6d5567a9c617
+
+* Dockerizing stuff
+
+2 ways to describe changes in containers. Either the Dockerfile approach that we saw, 
+or actually running commands in the container and commiting their result.
+
+ FROM ubuntu:latest
+ MAINTAINER Daniel Rammer <hamersaw@gmail.com>
+
+ RUN apt-get update && \
+       apt-get install -y openjdk-7-jre-headless git && \
+       rm -rf /var/lib/apt/lists/*
+
+ # default command
+ CMD [""]
+
+ $ sudo docker build -t test:dockerfile .
+ $ sudo docker images
+ REPOSITORY           TAG                 IMAGE ID            CREATED        VIRTUAL SIZE
+ test                 dockerfile          785dbeba75fc        11 minutes ago 334 MB
+ hamersaw/cassandra   cluster             99d592d35c4a        2 days     ago 379.4 MB
+ hamersaw/cassandra   base                64c24bca8f59        2 days     ago 379.4 MB
+ ubuntu               latest              2d24f826cb16        2 weeks    ago 188.3 MB
+
+* Dockerizing stuff
+ $ sudo docker run -di ubuntu:latest
+ 7f720fb6c8a52e107c367b6b1b18d1e707e10629db1b1441bbdc69dfc83dafc
+ $ sudo docker exec -ti 7f7 bash
+ root@7f720fb6c8a5:/# apt-get update
+ ...
+ root@7f720fb6c8a5:/# apt-get install -y openjdk-7-jre-headless git
+ ...
+ root@7f720fb6c8a5:/# rm -rf /var/lig/apt/lists/*
+ ...
+ root@7f720fb6c8a5:/# exit
+ $ sudo docker commit 7f7 test:container
+ 14f31a8a3e32f7d319514c59e5d5f6bfa75b4e33b695923454924906813bb007
+
+ $ sudo docker images
+ REPOSITORY           TAG                 IMAGE ID            CREATED 		VIRTUAL SIZE
+ test                 container           14f31a8a3e32        10 seconds ago      334 MB
+ test                 dockerfile          785dbeba75fc        12 minutes ago      334 MB
+ hamersaw/cassandra   cluster             99d592d35c4a        2 days     ago 	  379.4 MB
+ hamersaw/cassandra   base                64c24bca8f59        2 days     ago 	  379.4 MB
+ ubuntu               latest              2d24f826cb16        2 weeks    ago      188.3 MB
+
+* Dockerizing stuff
+ - Export vs Save
+ Export
+ Usage: docker export CONTAINER
+ Export the contents of a filesystem as a tar archive to STDOUT
+ Save
+ Usage: docker save [OPTIONS] IMAGE [IMAGE...]
+ Save an image(s) to a tar archive (streamed to STDOUT by default)
+
+ $ sudo docker export 7f7 > test-export.tar
+ $ sudo docker save test:container > test-save.tar
+ $ ls -lh
+ total 637M
+ -rw-r--r-- 1 hamersaw users  199 Mar 12 16:56 Dockerfile
+ -rw-r--r-- 1 hamersaw users 331M Mar 12 17:36 test-save.tar
+ -rw-r--r-- 1 hamersaw users 307M Mar 12 17:35 test-export.tar
+ $ cat test-export.tar | sudo docker import - test:import
+ bc46796bd57e6a0ecd09cc409d14b9bf3f53c1d699246274bdbe85601cc9949e
+ $ sudo docker load < test-save.tar
+ $ sudo docker images
+ REPOSITORY           TAG                 IMAGE ID            CREATED 		VIRTUAL SIZE
+ test                 import              bc46796bd57e        45 seconds ago      308.9 MB
+ test                 container           14f31a8a3e32        29 minutes ago      334 MB
+ hamersaw/cassandra   cluster             99d592d35c4a        2 days     ago      379.4 MB
+ ubuntu               latest              2d24f826cb16        2 weeks    ago      188.3 MB
+
+* Dockerizing stuff
+
+ $ sudo docker history test:import
+ IMAGE               CREATED             CREATED BY          SIZE
+ f716be9dbb84        22 seconds ago                          308.9 MB
+ $ sudo docker history test:container
+ IMAGE               CREATED              CREATED BY                                      SIZE
+ 37ba84378ee7        6 minutes ago        /bin/bash                                      145.8 MB
+ 2103b00b3fdf        2 days    ago        /bin/sh -c #(nop) CMD [/bin/bash]                   0 B
+ 4faa69f72743        2 days    ago        /bin/sh -c sed -i 's/^#\s*\(deb.*universe\)$/  1.895 kB
+ 76b658ecb564        2 days    ago        /bin/sh -c echo '#!/bin/sh' > /usr/sbin/polic  194.5 kB
+ f0dde87450ec        2 days    ago        /bin/sh -c #(nop) ADD file:a2d97c73fb08b9738c  188.1 MB
+ 511136ea3c5a        21 months ago                                                            0 B
+
+* Dockerizing stuff
+Making insunity log to syslog.
+
+.code insunity/insunity1.go /^func main()/,/^}/
+
+ $ sudo docker build -t ramrunner/goubuntu .
+ $ sudo docker run ramrunner/goubuntu insunity
+ 2015/03/12 19:25:49 χελόου γουορλντ
+ $ sudo docker  run -d  ramrunner/goubuntu /bin/sh -c "while true; do insunity; sleep 1; done"
+ d335ce3598e884b2c8ec606cb86bc29939bc8f0039fe6da8759bef2929b20ae9
+ $ sudo docker ps
+ CONTAINER ID        IMAGE                       COMMAND                CREATED             STATUS              PORTS                                                                           NAMES
+ d335ce3598e8        ramrunner/goubuntu:latest   "/bin/sh -c 'while t   2 seconds ago       Up 1 seconds                                                                                        lonely_ptolemy
+ $ sudo docker logs lonely_ptolemy
+ 2015/03/12 19:29:01 χελόου γουορλντ
+ 2015/03/12 19:29:02 χελόου γουορλντ
+ 2015/03/12 19:29:03 χελόου γουορλντ
+
+* Into Golang we go
+An ugly way to figure out our IP
+
+.code insunity/insunity2.go /OMIT/,/OMIT/
+
+* Into Golang we go
+An ugly way to figure out our IP
+
+.code insunity/insunity2.go /^func main()/,/^}/
+
+* Into Golang we go
+Building and running it
+ 
+ $ sudo docker build -t ramrunner/goubuntu .
+ $ sudo docker run ramrunner/goubuntu insunity
+ 2015/03/12 20:35:06 [lo] - 127.0.0.1
+ 2015/03/12 20:35:06 [eth0] - 172.17.0.35
+
+Time for a an IP string channel based generator
+
+.code insunity/insunity3.go /^func genIPs/,/^}/
+
+* Into Golang we go
+Using our generator
+
+.code insunity/insunity3.go /^func main()/,/^}/
+
+ $ sudo docker run ramrunner/goubuntu insunity
+ 2015/03/12 21:34:22 will scan:172.17.0.1:1337
+ 2015/03/12 21:34:22 will scan:172.17.0.2:1337 ...
+
+* RPC and MP duality
+Communication in distributed systems is usually done with:
+
+ - Message Passing
+   - basis. lowest level of abstraction
+   - user needs to determine src/dst nodes, the message and the data types it comprises of
+     - send(rcv, msg)
+     - receive(snd, msg)
+   - tedious to get a complicated system modelled on just that
+ - Remote Procedure Calls
+   - increase the level of abstraction by removing the need to explicitly move messages
+   - similar to local procedure calls
+     - call(req, resp) on the client will block until a resp is received
+     - receive(req, res) on the server will block until a req is received. it then generates res
+     - reply(caller, res) once res is calculated send it to the caller.
+ - Distributed Shared Memory
+   - yeah, right ;p lol.
+
+so what if we had a cross-platform standarized way to encode arbitrary messages? 
+then talk to RPC servers using them?
+that can be automagically encoded to JSON and XML because *debugging* and bad taste?
+
+* Is there such a thing? 
+
+.image imgs/lolcat.jpg
+
+* Protocol Buffers
+
+A language-neutral, platform-neutral, extensible mechanism for serializing structured data.
+
+You describe your structures in .proto files that are used to generate stub code for the language of your choice using the protobuf compiler
+
+In addition you can define services that produce and consume those messages
+
+All the types are easily extendable too, so even if nodes are running with older descriptions of the messages, they are able to parse messages with the newer format.
+
+Allows the messages to be contained in namespaces (c++) classes (java) or packages (python/golang)
+
+* Protocol Buffers - Message Type
+
+Let's say we want to create an RPC service that calculates shannon entropy on byte arrays and returns the results to the caller.
+
+ message EntropyRequest {
+   required string data = 1;
+   optional string id = 2;
+   optional uint32 version = 3;
+ }
+
+ - required is forever. All the versions of EntropyRequest in the future must have it.
+   Every message must have exactly one of this.
+
+ - repeated specifies the type of an array of zero or more elements. 
+   The order of the repeated values is preserved.
+
+ - optional means that a well-formed message can have zero or one of this field.
+
+ - required should be generally avoided.
+ 
+ - types can be: double, float, int32, int64, uint32, uint64, sint32, sint64, fixed32,
+   fixed64, sfixed32, sfixed64, bool, string, bytes
+ 
+ - enumerations and nested types are supported
+
+* Protocol Buffers - Service Type
+
+To use messages with RPC we define a service type. Such methods typically take a MsgReq and produce a MsgResp
+
+ service EntropyService {
+   rpc Entropy (EntropyRequest) returns (EntropyResponse)
+ }
+
+The protocol compiler will then generate an abstract interface called EntropyService and a corresponding "stub" implementation.
+
+The stub forwards all calls to an RPC Channel, which in turn is an abstract interface that you must define yourself in terms of your own RPC system.
+
+For example, you might implement an RPC Channel which serializes the message and sends it to a server via HTTP.
+
+In other words, the generated stub provides a type-safe interface for making protocol-buffer-based RPC calls, without locking you into any particular RPC implementation. 
+
+* Protocol Buffers - protoc output
+Protoc will provide us with all the get/set methods, helpers and more.
+
+.code insunity/entropy.pb.go /type EntropyRequest/,/^}/
+.code insunity/entropy.pb.go /GetData()/,/^}/
+.code insunity/entropy.pb.go /func DialEntropyService()/,/^}/
+
+* Protocol Buffers - ok how do i use them?
+To add it into our dockerfile we have to change it a bit to install the protobuf compiler as well as the relevant golang rpc libs.
+
+ FROM ubuntu:14.04
+ RUN \
+  ... previously mentioned ...
+  apt-get install -y protobuf-compiler && \
+  go get github.com/chai2010/protorpc && \
+  go get github.com/chai2010/protorpc/protoc-gen-go
+
+ ... previously mentioned ...
+ WORKDIR /root
+ RUN protoc --go_out=go/src/insunity/entropy.pb/ go/src/insunity/entropy.pb/entropy.proto
+ RUN go install /root/go/src/insunity/insunity.go
+
+ $ tree
+ ├── bashrc
+ ├── Dockerfile
+ └── insunity
+     ├── entropy.pb
+     │   ├── entropy.pb.go
+     │   └── entropy.proto
+     └── insunity.go
+
+* Protocol Buffers - having our code use them.
+Fixing imports:
+
+ - add "github.com/chai2010/protorpc/proto"
+ - add service "./entropy.pb"
+.code insunity/insunity6.go /type logentry/,/^}/
+.code insunity/insunity6.go /type shannonsrv/,/^}/
+
+* Protocols Buffers - the RPC service code
+We implement the Entropy logic on the shannonsrv struct
+
+.code insunity/insunity6.go /Entropy\(/,/^}/
+
+As we see he maintains a log of all the requests received and
+will flush that to log output periodically.
+
+* Back to golangland - Shannon Entropy
+
+A far from efficient implementation of shannon's entropy for uint8 slices.
+
+.code insunity/insunity6.go /func H/,/^}/
+
+* Back to golangland - Random strings and timers
+
+random strings
+
+.code insunity/insunity6.go /func randStr/,/^}/
+
+periodic events
+
+ ticker := time.NewTicker(time.Minute)
+ go func() {
+     for t := range ticker.C {
+         log.Printf("server:%s log:%s", ss.id, ss.log)
+     }
+ }()
+
+* Back to golangland - flags
+
+ srv_flag := flag.Bool("srv", false, "server mode. options other than port are ignored")
+ port_flag := flag.Int("port", 9527, "port for the server to bind on")
+ msg_amount_flag := flag.Int("amount", 10, "amount of random messages to generate")
+ msg_length_flag := flag.Int("len", 32, "character length of each random message")
+ srv_ip_flag := flag.String("dial", "", "IP:Port of server to dial")
+ flag.Parse()
+
+
+* Using it
+
+Ok we rebuild our image and everything is ready.
+The whole code for this project will be on
+
+.link https://github.com/ramrunner/insunity github
+
+ $ sudo docker run  -d ramrunner/insunity:latest insunity -srv=true
+ f494a8423a035b1d7e1e4e9fb0d2460c7d3b8712a2005db4e74543c5b9e07121
+ $ sudo docker ps
+ CONTAINER ID        IMAGE                       COMMAND                CREATED             STATUS              PORTS               NAMES
+ f494a8423a03        ramrunner/insunity:latest   "insunity -srv=true"   7 seconds ago       Up 6 seconds                            prickly_sinoussi
+
+ 2015/03/14 05:07:44 connecting to:172.17.0.1:9527 with 1s timeout
+ 2015/03/14 05:07:45 service.DialEntropyService: dial tcp 172.17.0.1:9527: i/o timeout
+ 2015/03/14 05:07:45 connecting to:172.17.0.2:9527 with 1s timeout
+ 2015/03/14 05:07:46 service.DialEntropyService: dial tcp 172.17.0.2:9527: i/o timeout
+ 2015/03/14 05:07:46 connecting to:172.17.0.3:9527 with 1s timeout
+ 2015/03/14 05:07:47 service.DialEntropyService: dial tcp 172.17.0.3:9527: i/o timeout
+ ...
+ 2015/03/14 05:16:53 connecting to:172.17.0.21:9527 with 1s timeout
+ server: 172.17.0.21  str XVlBzgbaiCMRAjWwhTHctcuAxhxKQFDa  entropy  4.6875
+ server: 172.17.0.21  str FpLSjFbcXoEFfRsWxPLDnJObCsNVlgTe  entropy  4.66391
+ server: 172.17.0.21  str MaPEZQleQYhYzRyWJjPjzpfRFEgmotaF  entropy  4.4375
+ ...
+
+* Using it
+
+On the server side we can see the logs that are being periodically outputed (every 1 Minute)
+
+ $ sudo docker logs prickly_sinoussi
+ 2015/03/14 05:16:50 server:172.17.0.21 log:
+ 2015/03/14 05:17:50 server:172.17.0.21 log:172.17.0.22@2015-03-14 05:16:53.296089788 +0000 UTC -> 4.6875, 
+ 172.17.0.22@2015-03-14 05:16:53.297177991 +0000 UTC -> 4.66391,
+ 172.17.0.22@2015-03-14 05:16:53.297988573 +0000 UTC -> 4.4375,
+ 172.17.0.22@2015-03-14 05:16:53.298989004 +0000 UTC -> 4.41391,
+ 172.17.0.22@2015-03-14 05:16:53.299946921 +0000 UTC -> 4.2028193,
+ 172.17.0.22@2015-03-14 05:16:53.300933064 +0000 UTC -> 4.2028193,
+ ...
+
+and the options it now support for server or client mode
+
+ $ sudo docker run ramrunner/insunity:latest insunity -h
+ Usage of insunity:
+  -amount=10: amount of random messages to generate
+  -dial="": IP:Port of server to dial
+  -len=32: character length of each random message
+  -port=9527: port for the server to bind on
+  -srv=false: start in server mode. other options are ignored. eth0 IP will be used
+
+
+* finally pushing the image to dockerhub
+
+ $ sudo docker push ramrunner/insunity/insunity
+ The push refers to a repository [ramrunner/insunity] (len: 1)
+ Sending image list
+ The push refers to a repository [ramrunner/insunity] (len: 1)
+ Sending image list
+ Pushing repository ramrunner/insunity (1 tags)
+ 511136ea3c5a: Image already pushed, skipping
+ f0dde87450ec: Image already pushed, skipping
+ 76b658ecb564: Image already pushed, skipping
+ 4faa69f72743: Image already pushed, skipping
+ 2103b00b3fdf: Image already pushed, skipping
+ 1e95f77d6732: Image successfully pushed
+ 9a6baaab497a: Image successfully pushed
+ cebd7b3bae79: Image successfully pushed
+ ...
+ 462bdc240f24: Image successfully pushed
+
+ $ sudo docker search insunity
+ NAME                 DESCRIPTION   STARS     OFFICIAL   AUTOMATED
+ ramrunner/insunity                 0
+
