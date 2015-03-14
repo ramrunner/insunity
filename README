@@ -1,0 +1,9 @@
+ -inSUNity-
+
+A useless shannon entropy protobuf aware RPC service, written in golang that runs in docker containers.
+Also a presentation about it.
+
+To clone the docker image: sudo docker pull ramrunner/insunity
+
+Mar 2015
+DsP <dsp@2f30.org>
