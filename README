@@ -5,5 +5,9 @@ Also a presentation about it.
 
 To clone the docker image: sudo docker pull ramrunner/insunity
 
+You can view the presentation that lives in this repository online here:
+
+http://go-talks.appspot.com/github.com/ramrunner/insunity/presentation/insunity.slide#1
+
 Mar 2015
 DsP <dsp@2f30.org>
