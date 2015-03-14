@@ -468,13 +468,12 @@ The whole code for this project will be on
  $ sudo docker ps
  CONTAINER ID        IMAGE                       COMMAND                CREATED             STATUS              PORTS               NAMES
  f494a8423a03        ramrunner/insunity:latest   "insunity -srv=true"   7 seconds ago       Up 6 seconds                            prickly_sinoussi
-
+ - and running the client to scan the whole subnet until he finds a server
+ $ sudo docker run  -d ramrunner/insunity:latest insunity
  2015/03/14 05:07:44 connecting to:172.17.0.1:9527 with 1s timeout
  2015/03/14 05:07:45 service.DialEntropyService: dial tcp 172.17.0.1:9527: i/o timeout
  2015/03/14 05:07:45 connecting to:172.17.0.2:9527 with 1s timeout
  2015/03/14 05:07:46 service.DialEntropyService: dial tcp 172.17.0.2:9527: i/o timeout
- 2015/03/14 05:07:46 connecting to:172.17.0.3:9527 with 1s timeout
- 2015/03/14 05:07:47 service.DialEntropyService: dial tcp 172.17.0.3:9527: i/o timeout
  ...
  2015/03/14 05:16:53 connecting to:172.17.0.21:9527 with 1s timeout
  server: 172.17.0.21  str XVlBzgbaiCMRAjWwhTHctcuAxhxKQFDa  entropy  4.6875
