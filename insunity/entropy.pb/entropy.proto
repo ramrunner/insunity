@@ -1,0 +1,17 @@
+package service;
+
+message EntropyRequest {
+  required string data = 1;
+  optional string id = 2;
+  optional uint32 version = 3;
+}
+
+message EntropyResponse {
+  required float entropy = 1;
+  optional string id = 2;
+  optional uint32 version = 3;
+}
+
+ service EntropyService {
+  rpc Entropy (EntropyRequest) returns (EntropyResponse);
+}
