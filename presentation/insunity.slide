@@ -253,7 +253,7 @@ or actually running commands in the container and commiting their result.
 * Dockerizing stuff
 Making insunity log to syslog.
 
-.code insunity/insunity1.go /^func main()/,/^}/
+.code files/insunity1.go /^func main()/,/^}/
 
  $ sudo docker build -t ramrunner/goubuntu .
  $ sudo docker run ramrunner/goubuntu insunity
@@ -271,12 +271,12 @@ Making insunity log to syslog.
 * Into Golang we go
 An ugly way to figure out our IP
 
-.code insunity/insunity2.go /OMIT/,/OMIT/
+.code files/insunity2.go /OMIT/,/OMIT/
 
 * Into Golang we go
 An ugly way to figure out our IP
 
-.code insunity/insunity2.go /^func main()/,/^}/
+.code files/insunity2.go /^func main()/,/^}/
 
 * Into Golang we go
 Building and running it
@@ -288,12 +288,12 @@ Building and running it
 
 Time for a an IP string channel based generator
 
-.code insunity/insunity3.go /^func genIPs/,/^}/
+.code files/insunity3.go /^func genIPs/,/^}/
 
 * Into Golang we go
 Using our generator
 
-.code insunity/insunity3.go /^func main()/,/^}/
+.code files/insunity3.go /^func main()/,/^}/
 
  $ sudo docker run ramrunner/goubuntu insunity
  2015/03/12 21:34:22 will scan:172.17.0.1:1337
@@ -381,9 +381,9 @@ In other words, the generated stub provides a type-safe interface for making pro
 * Protocol Buffers - protoc output
 Protoc will provide us with all the get/set methods, helpers and more.
 
-.code insunity/entropy.pb.go /type EntropyRequest/,/^}/
-.code insunity/entropy.pb.go /GetData()/,/^}/
-.code insunity/entropy.pb.go /func DialEntropyService()/,/^}/
+.code files/entropy.pb.go /type EntropyRequest/,/^}/
+.code files/entropy.pb.go /GetData()/,/^}/
+.code files/entropy.pb.go /func DialEntropyService()/,/^}/
 
 * Protocol Buffers - ok how do i use them?
 To add it into our dockerfile we have to change it a bit to install the protobuf compiler as well as the relevant golang rpc libs.
@@ -414,13 +414,13 @@ Fixing imports:
 
  - add "github.com/chai2010/protorpc/proto"
  - add service "./entropy.pb"
-.code insunity/insunity6.go /type logentry/,/^}/
-.code insunity/insunity6.go /type shannonsrv/,/^}/
+.code files/insunity6.go /type logentry/,/^}/
+.code files/insunity6.go /type shannonsrv/,/^}/
 
 * Protocols Buffers - the RPC service code
 We implement the Entropy logic on the shannonsrv struct
 
-.code insunity/insunity6.go /Entropy\(/,/^}/
+.code files/insunity6.go /Entropy\(/,/^}/
 
 As we see he maintains a log of all the requests received and
 will flush that to log output periodically.
@@ -429,13 +429,13 @@ will flush that to log output periodically.
 
 A far from efficient implementation of shannon's entropy for uint8 slices.
 
-.code insunity/insunity6.go /func H/,/^}/
+.code files/insunity6.go /func H/,/^}/
 
 * Back to golangland - Random strings and timers
 
 random strings
 
-.code insunity/insunity6.go /func randStr/,/^}/
+.code files/insunity6.go /func randStr/,/^}/
 
 periodic events
 

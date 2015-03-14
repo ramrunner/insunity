@@ -1,0 +1,20 @@
+FROM ubuntu:14.04
+MAINTAINER anon ymous, dsp@2f30.org
+RUN \
+  apt-get update && \
+  apt-get install -y golang && \
+  apt-get install -y protobuf-compiler && \
+  mkdir -p /root/go/src && \
+  mkdir -p /root/go/bin && \
+  go get github.com/chai2010/protorpc && \
+  go get github.com/chai2010/protorpc/protoc-gen-go
+
+COPY bashrc /root/.bashrc
+COPY insunity /root/go/src/insunity
+ENV GOBIN /root/go/bin
+ENV PATH /root/go/bin:$PATH
+ENV HOME /root
+WORKDIR /root
+RUN go install /root/go/src/insunity/insunity.go
+
+CMD ["bash"]
